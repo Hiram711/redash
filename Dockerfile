@@ -13,12 +13,12 @@ COPY viz-lib /frontend/viz-lib
 # Controls whether to instrument code for coverage information
 ARG code_coverage
 ENV BABEL_ENV=${code_coverage:+test}
-
-RUN if [ "x$skip_frontend_build" = "x" ] ; then npm ci --unsafe-perm; fi
+RUN npm config set registry https://registry.npm.taobao.org
+RUN npm ci --unsafe-perm
 
 COPY client /frontend/client
 COPY webpack.config.js /frontend/
-RUN if [ "x$skip_frontend_build" = "x" ] ; then npm run build; else mkdir -p /frontend/client/dist && touch /frontend/client/dist/multi_org.html && touch /frontend/client/dist/index.html; fi
+RUN npm run build
 FROM python:3.7-slim
 
 EXPOSE 5000
@@ -32,12 +32,14 @@ RUN useradd --create-home redash
 
 # Ubuntu 阿里云镜像
 RUN  sed -i s@/archive.ubuntu.com/@/mirrors.aliyun.com/@g /etc/apt/sources.list
+RUN  sed -i s@/deb.debian.org/@/mirrors.aliyun.com/@g /etc/apt/sources.list
 RUN  apt-get clean
 RUN  apt-get update
 
 # Ubuntu packages
 RUN apt-get update && \
   apt-get install -y \
+    apt-utils \
     curl \
     gnupg \
     build-essential \
@@ -87,8 +89,9 @@ COPY pip.conf /etc/pip.conf
 # We first copy only the requirements file, to avoid rebuilding on every file
 # change.
 COPY requirements.txt requirements_bundles.txt requirements_dev.txt requirements_all_ds.txt ./
-RUN if [ "x$skip_dev_deps" = "x" ] ; then pip install -r requirements.txt -r requirements_dev.txt; else pip install -r requirements.txt; fi
-RUN if [ "x$skip_ds_deps" = "x" ] ; then pip install -r requirements_all_ds.txt ; else echo "Skipping pip install -r requirements_all_ds.txt" ; fi
+RUN pip install -r requirements.txt -r requirements_dev.txt -r requirements_all_ds.txt
+# RUN if [ "x$skip_dev_deps" = "x" ] ; then pip install -r requirements.txt -r requirements_dev.txt; else pip install -r requirements.txt; fi
+# RUN if [ "x$skip_ds_deps" = "x" ] ; then pip install -r requirements_all_ds.txt ; else echo "Skipping pip install -r requirements_all_ds.txt" ; fi
 
 COPY . /app
 COPY --from=frontend-builder /frontend/client/dist /app/client/dist
